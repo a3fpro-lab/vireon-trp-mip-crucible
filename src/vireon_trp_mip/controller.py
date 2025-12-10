@@ -8,6 +8,7 @@ from .distributions import softmax_from_scores
 from .kl_leash import apply_kl_leash
 from .collapse_laws import CollapseTracker
 
+
 @dataclass
 class VireonNodeSelector:
     config: VireonConfig = field(default_factory=VireonConfig)
@@ -17,20 +18,26 @@ class VireonNodeSelector:
     def select(self, scores: list[float], best_bound: float) -> tuple[int, dict]:
         q = softmax_from_scores(scores, beta=self.config.beta)
 
-        if self.trp.q_ref is None:
+        # If no reference yet OR action set size changed, reset reference
+        if self.trp.q_ref is None or self.trp.q_ref.shape != q.shape:
             self.trp.update_q_ref(q)
+            q_leashed = q
+            delta_kl = 0.0
+            regime = "green"
+        else:
+            q_leashed, delta_kl, regime = apply_kl_leash(
+                q_new=q,
+                q_ref=self.trp.q_ref,
+                eps_green=self.config.eps_green,
+                eps_yellow=self.config.eps_yellow,
+            )
 
-        q_leashed, delta_kl, regime = apply_kl_leash(
-            q_new=q,
-            q_ref=self.trp.q_ref,
-            eps_green=self.config.eps_green,
-            eps_yellow=self.config.eps_yellow,
-        )
-
+        # TRP update (toy: loss_t = 0)
         loss_t = 0.0
         self.trp.update_R(delta_kl)
         self.trp.update_P(loss_t)
 
+        # Collapse update
         collapsed = self.collapse.update(best_bound)
         if collapsed:
             q_leashed = np.full_like(q_leashed, 1.0 / len(q_leashed))
