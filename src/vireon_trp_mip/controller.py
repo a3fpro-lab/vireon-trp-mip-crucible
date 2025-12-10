@@ -1,5 +1,5 @@
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import numpy as np
 
 from .config import VireonConfig
@@ -10,9 +10,9 @@ from .collapse_laws import CollapseTracker
 
 @dataclass
 class VireonNodeSelector:
-    config: VireonConfig = VireonConfig()
-    trp: TRPState = TRPState()
-    collapse: CollapseTracker = CollapseTracker()
+    config: VireonConfig = field(default_factory=VireonConfig)
+    trp: TRPState = field(default_factory=TRPState)
+    collapse: CollapseTracker = field(default_factory=CollapseTracker)
 
     def select(self, scores: list[float], best_bound: float) -> tuple[int, dict]:
         q = softmax_from_scores(scores, beta=self.config.beta)
